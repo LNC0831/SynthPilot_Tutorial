@@ -1,0 +1,26 @@
+# Vivado project files (keep .xpr, ignore generated artifacts)
+**/prj/**/demo*/.Xil/
+**/prj/**/demo*/demo*.cache/
+**/prj/**/demo*/demo*.hw/
+**/prj/**/demo*/demo*.ip_user_files/
+**/prj/**/demo*/demo*.runs/
+**/prj/**/demo*/demo*.sim/
+**/prj/**/demo*/demo*.srcs/utils_1/
+**/prj/**/demo*/demo*.gen/
+
+# MCP simulation artifacts
+**/mcp_sim/
+
+# Vivado logs and journals
+*.jou
+*.log
+*.pb
+*.wdb
+*.vcd
+*.str
+
+# PDF reference documents (too large for git)
+doc/*.pdf
+
+# Claude Code local settings
+.claude/

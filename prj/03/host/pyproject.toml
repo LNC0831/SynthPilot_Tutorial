@@ -1,0 +1,14 @@
+[project]
+name = "uart-viewer"
+version = "0.1.0"
+description = "FPGA UART data visualizer - real-time waveform display for multi-clock domain data acquisition system"
+requires-python = ">=3.9,<3.13"
+dependencies = [
+    "pyserial>=3.5",
+    "PyQt6>=6.5",
+    "pyqtgraph>=0.13",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

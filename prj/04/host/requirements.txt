@@ -1,0 +1,4 @@
+numpy
+pydub
+flask
+flask-sock

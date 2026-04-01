@@ -1,0 +1,38 @@
+{
+   "ActiveEmotionalView":"Default View",
+   "Default View_ScaleFactor":"1.21871",
+   "Default View_TopLeft":"-201,-84",
+   "ExpandedHierarchyInLayout":"",
+   "guistr":"# # String gsaved with Nlview 7.8.0 2024-04-26 e1825d835c VDI=44 GEI=38 GUI=JA:21.0
+#  -string -flagsOSRD
+preplace port pcie_mgt -pg 1 -lvl 4 -x 940 -y 80 -defaultsOSRD
+preplace port pcie_refclk -pg 1 -lvl 0 -x 0 -y 130 -defaultsOSRD
+preplace port m_axis_h2c -pg 1 -lvl 4 -x 940 -y 170 -defaultsOSRD
+preplace port s_axis_c2h -pg 1 -lvl 0 -x 0 -y 310 -defaultsOSRD
+preplace port port-id_clk_100m -pg 1 -lvl 0 -x 0 -y 350 -defaultsOSRD
+preplace port port-id_clk_100m_locked -pg 1 -lvl 0 -x 0 -y 330 -defaultsOSRD
+preplace port port-id_pcie_perstn -pg 1 -lvl 0 -x 0 -y 60 -defaultsOSRD
+preplace port port-id_user_lnk_up -pg 1 -lvl 4 -x 940 -y 260 -defaultsOSRD
+preplace inst xdma_0 -pg 1 -lvl 2 -x 500 -y 120 -defaultsOSRD
+preplace inst input_fifo -pg 1 -lvl 3 -x 800 -y 170 -defaultsOSRD
+preplace inst output_fifo -pg 1 -lvl 1 -x 180 -y 340 -defaultsOSRD
+preplace inst pcie_refclk_buf -pg 1 -lvl 1 -x 180 -y 130 -defaultsOSRD
+preplace netloc clk_100m_1 1 0 3 20 240 NJ 240 680
+preplace netloc clk_100m_locked_1 1 0 1 NJ 330
+preplace netloc pcie_perstn_1 1 0 2 NJ 60 340J
+preplace netloc pcie_refclk_buf_IBUF_DS_ODIV2 1 1 1 330 100n
+preplace netloc pcie_refclk_buf_IBUF_OUT 1 1 1 N 120
+preplace netloc xdma_0_axi_aclk 1 0 3 30 250 NJ 250 650
+preplace netloc xdma_0_axi_aresetn 1 2 1 660 140n
+preplace netloc xdma_0_user_lnk_up 1 2 2 670J 260 NJ
+preplace netloc input_fifo_M_AXIS 1 3 1 NJ 170
+preplace netloc output_fifo_M_AXIS 1 1 1 350 80n
+preplace netloc pcie_refclk_1 1 0 1 NJ 130
+preplace netloc s_axis_c2h_1 1 0 1 NJ 310
+preplace netloc xdma_0_M_AXIS_H2C_0 1 2 1 680 60n
+preplace netloc xdma_0_pcie_mgt 1 2 2 NJ 80 NJ
+levelinfo -pg 1 0 180 500 800 940
+pagesize -pg 1 -db -bbox -sgen -160 0 1070 430
+"
+}
+0

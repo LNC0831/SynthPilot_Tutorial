@@ -1,15 +1,24 @@
-# Vivado project files (keep .xpr, ignore generated artifacts)
-**/prj/**/demo*/.Xil/
-**/prj/**/demo*/demo*.cache/
-**/prj/**/demo*/demo*.hw/
-**/prj/**/demo*/demo*.ip_user_files/
-**/prj/**/demo*/demo*.runs/
-**/prj/**/demo*/demo*.sim/
-**/prj/**/demo*/demo*.srcs/utils_1/
-**/prj/**/demo*/demo*.gen/
+# Vivado project files (keep .xpr, .xci, .bd, .xdc — ignore generated artifacts)
+**/.Xil/
+**/*.cache/
+**/*.hw/
+**/*.ip_user_files/
+**/*.runs/
+**/*.sim/
+**/utils_1/imports/
+**/*.gen/
 
 # MCP simulation artifacts
 **/mcp_sim/
+
+# Synthesis checkpoints
+*.dcp
+
+# Audio files (copyright)
+prj/04/audio/
+
+# MCP local config
+.mcp.json
 
 # Vivado logs and journals
 *.jou

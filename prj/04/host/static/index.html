@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>XDMA FFT 音乐频谱分析仪</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; }
+body {
+    background: #0d0d1a;
+    color: #e0e0e0;
+    font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+    display: flex;
+    flex-direction: column;
+    padding: 16px 24px;
+}
+header {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    margin-bottom: 10px;
+    flex-shrink: 0;
+}
+h1 {
+    font-size: 1.4em;
+    color: #00d4ff;
+    letter-spacing: 2px;
+}
+.subtitle {
+    font-size: 0.8em;
+    color: #556;
+}
+.watermark {
+    margin-left: auto;
+    font-size: 0.75em;
+    color: #445;
+    letter-spacing: 1px;
+}
+.chart-area {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+}
+.y-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-right: 4px;
+    flex-shrink: 0;
+}
+.y-label {
+    font-size: 12px;
+    color: #00d4ff;
+    margin-bottom: 8px;
+}
+.y-ticks {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: flex-end;
+    padding-right: 6px;
+    font-size: 11px;
+    color: #778;
+    width: 40px;
+}
+.canvas-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+#spectrum-canvas {
+    background: #0f0f23;
+    border: 1px solid #2a2a40;
+    border-radius: 6px;
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+}
+.x-axis {
+    position: relative;
+    height: 18px;
+    padding-top: 4px;
+    font-size: 11px;
+    color: #778;
+    flex-shrink: 0;
+}
+.x-label {
+    text-align: center;
+    font-size: 12px;
+    color: #00d4ff;
+    margin-top: 2px;
+    flex-shrink: 0;
+}
+#status-bar {
+    display: flex;
+    justify-content: center;
+    gap: 28px;
+    margin-top: 10px;
+    font-size: 0.82em;
+    color: #aaa;
+    background: #14142a;
+    padding: 8px 24px;
+    border-radius: 20px;
+    border: 1px solid #2a2a40;
+    flex-shrink: 0;
+}
+.status-item { display: flex; align-items: center; gap: 6px; }
+.status-label { color: #556; }
+.status-value { color: #e0e0e0; font-variant-numeric: tabular-nums; }
+#conn-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #ff4444;
+    box-shadow: 0 0 6px #ff4444;
+}
+#conn-dot.connected {
+    background: #44ff88;
+    box-shadow: 0 0 6px #44ff88;
+}
+</style>
+</head>
+<body>
+
+<header>
+    <h1>XDMA FFT 音乐频谱分析仪</h1>
+    <span class="subtitle">FPGA 1024-pt FFT &middot; PCIe Gen3 x4</span>
+    <span class="watermark">built by 晓川科研站</span>
+</header>
+
+<div class="chart-area">
+    <div class="y-col">
+        <div class="y-label">dB</div>
+        <div class="y-ticks">
+            <span>0</span>
+            <span>-12</span>
+            <span>-24</span>
+            <span>-36</span>
+            <span>-48</span>
+            <span>-60</span>
+            <span>-72</span>
+        </div>
+    </div>
+    <div class="canvas-col">
+        <canvas id="spectrum-canvas"></canvas>
+        <div class="x-axis" id="x-ticks"></div>
+        <div class="x-label">频率 (Hz)</div>
+    </div>
+</div>
+
+<div id="status-bar">
+    <div class="status-item">
+        <div id="conn-dot"></div>
+        <span id="conn-text">Disconnected</span>
+    </div>
+    <div class="status-item">
+        <span class="status-label">FPS</span>
+        <span class="status-value" id="fps-display">0</span>
+    </div>
+    <div class="status-item">
+        <span class="status-label">帧计数</span>
+        <span class="status-value" id="frame-count">0</span>
+    </div>
+    <div class="status-item">
+        <span class="status-label">峰值</span>
+        <span class="status-value" id="peak-freq">&mdash;</span>
+    </div>
+</div>
+
+<audio id="audio-player" preload="auto"></audio>
+
+<script>
+(function() {
+    var SAMPLE_RATE = 44100;
+    var N_FFT = 1024;
+    var NUM_BINS = 512;
+    var FREQ_MIN = 40;     // 对数轴下限
+    var FREQ_MAX = 10000;  // 对数轴上限
+    var LOG_MIN = Math.log10(FREQ_MIN);
+    var LOG_MAX = Math.log10(FREQ_MAX);
+    var LOG_RANGE = LOG_MAX - LOG_MIN;
+
+    var canvas = document.getElementById('spectrum-canvas');
+    var ctx = canvas.getContext('2d');
+    var connDot = document.getElementById('conn-dot');
+    var connText = document.getElementById('conn-text');
+    var fpsDisplay = document.getElementById('fps-display');
+    var frameCountEl = document.getElementById('frame-count');
+    var peakFreqEl = document.getElementById('peak-freq');
+    var audioPlayer = document.getElementById('audio-player');
+
+    var rawBins = null;
+    var smoothBins = null;
+    var ATTACK = 0.5;
+    var RELEASE = 0.06;
+
+    var frameCount = 0;
+    var fpsFrames = 0;
+    var lastFpsTime = performance.now();
+    var audioStarted = false;
+
+    // 频率 → 画布 X 比例 [0,1]（对数映射）
+    function freqToX(freq) {
+        if (freq <= 0) return 0;
+        return (Math.log10(freq) - LOG_MIN) / LOG_RANGE;
+    }
+
+    // bin index → 频率
+    function binToFreq(bin) {
+        return bin * SAMPLE_RATE / N_FFT;
+    }
+
+    // X 轴刻度（对数间距）
+    var xTicksEl = document.getElementById('x-ticks');
+    var freqTicks = [50, 100, 200, 500, 1000, 2000, 5000, 10000];
+    xTicksEl.style.position = 'relative';
+    for (var t = 0; t < freqTicks.length; t++) {
+        var span = document.createElement('span');
+        var f = freqTicks[t];
+        span.textContent = f >= 1000 ? (f / 1000) + 'k' : f;
+        var pct = freqToX(f) * 100;
+        span.style.position = 'absolute';
+        span.style.left = pct + '%';
+        span.style.transform = 'translateX(-50%)';
+        xTicksEl.appendChild(span);
+    }
+
+    // 预计算：每个像素列对应哪些 bin（对数重采样查找表）
+    var RESAMPLE_PTS = 512;  // 输出曲线的采样点数
+    var resampleFreqs = new Float64Array(RESAMPLE_PTS);
+    for (var i = 0; i < RESAMPLE_PTS; i++) {
+        var logF = LOG_MIN + (i / (RESAMPLE_PTS - 1)) * LOG_RANGE;
+        resampleFreqs[i] = Math.pow(10, logF);
+    }
+
+    // 对数重采样：将线性 bin 数据映射到对数频率轴
+    function resampleLog(linear, out) {
+        var binRes = SAMPLE_RATE / N_FFT;
+        for (var i = 0; i < RESAMPLE_PTS; i++) {
+            var freq = resampleFreqs[i];
+            var binF = freq / binRes;
+            var b0 = Math.floor(binF);
+            var b1 = b0 + 1;
+            if (b0 < 0) b0 = 0;
+            if (b1 >= linear.length) b1 = linear.length - 1;
+            if (b0 >= linear.length) b0 = linear.length - 1;
+            var frac = binF - Math.floor(binF);
+            out[i] = linear[b0] * (1 - frac) + linear[b1] * frac;
+        }
+    }
+
+    var logBins = new Float64Array(RESAMPLE_PTS);
+
+    var dpr = 1;
+    function resizeCanvas() {
+        dpr = window.devicePixelRatio || 1;
+        canvas.width = canvas.clientWidth * dpr;
+        canvas.height = canvas.clientHeight * dpr;
+    }
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    function drawSpectrum() {
+        var cw = canvas.width;
+        var ch = canvas.height;
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, cw, ch);
+        ctx.scale(dpr, dpr);
+
+        var w = canvas.clientWidth;
+        var h = canvas.clientHeight;
+        var pad = 6;
+        var plotX = pad;
+        var plotY = pad;
+        var plotW = w - pad * 2;
+        var plotH = h - pad * 2;
+
+        // 水平网格线（对应 dB 刻度：0, -12, -24, -36, -48, -60, -72）
+        ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+        ctx.lineWidth = 1;
+        for (var g = 0; g <= 6; g++) {
+            var gy = plotY + (g / 6) * plotH;
+            ctx.beginPath();
+            ctx.moveTo(plotX, gy);
+            ctx.lineTo(plotX + plotW, gy);
+            ctx.stroke();
+        }
+
+        // 频段竖线
+        ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+        for (var t = 0; t < freqTicks.length; t++) {
+            var vx = plotX + freqToX(freqTicks[t]) * plotW;
+            ctx.beginPath();
+            ctx.moveTo(vx, plotY);
+            ctx.lineTo(vx, plotY + plotH);
+            ctx.stroke();
+        }
+
+        if (!smoothBins) {
+            requestAnimationFrame(drawSpectrum);
+            return;
+        }
+
+        // 对数重采样
+        if (rawBins) {
+            resampleLog(rawBins, logBins);
+            // 时间平滑
+            for (var i = 0; i < RESAMPLE_PTS; i++) {
+                var target = logBins[i];
+                var cur = smoothBins[i];
+                if (target > cur) {
+                    smoothBins[i] = cur + (target - cur) * ATTACK;
+                } else {
+                    smoothBins[i] = cur + (target - cur) * RELEASE;
+                }
+            }
+        }
+
+        var bottom = plotY + plotH;
+
+        // 构建平滑曲线
+        ctx.beginPath();
+        ctx.moveTo(plotX, bottom);
+        var pts = RESAMPLE_PTS;
+        var stepW = plotW / (pts - 1);
+
+        for (var i = 0; i < pts; i++) {
+            var val = Math.max(0, Math.min(1, smoothBins[i]));
+            var x = plotX + i * stepW;
+            var y = plotY + (1 - val) * plotH;
+            if (i === 0) {
+                ctx.lineTo(x, y);
+            } else {
+                var px = plotX + (i - 1) * stepW;
+                var py = plotY + (1 - Math.max(0, Math.min(1, smoothBins[i-1]))) * plotH;
+                var cx = (px + x) / 2;
+                ctx.quadraticCurveTo(px, py, cx, (py + y) / 2);
+            }
+        }
+        var lastY = plotY + (1 - Math.max(0, Math.min(1, smoothBins[pts-1]))) * plotH;
+        ctx.lineTo(plotX + plotW, lastY);
+        ctx.lineTo(plotX + plotW, bottom);
+        ctx.closePath();
+
+        // 渐变填充
+        var grad = ctx.createLinearGradient(0, plotY, 0, bottom);
+        grad.addColorStop(0, 'rgba(0, 210, 255, 0.85)');
+        grad.addColorStop(0.25, 'rgba(0, 160, 255, 0.5)');
+        grad.addColorStop(0.6, 'rgba(60, 30, 180, 0.25)');
+        grad.addColorStop(1, 'rgba(15, 8, 50, 0.05)');
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        // 曲线描边
+        ctx.beginPath();
+        for (var i = 0; i < pts; i++) {
+            var val = Math.max(0, Math.min(1, smoothBins[i]));
+            var x = plotX + i * stepW;
+            var y = plotY + (1 - val) * plotH;
+            if (i === 0) {
+                ctx.moveTo(x, y);
+            } else {
+                var px = plotX + (i - 1) * stepW;
+                var py = plotY + (1 - Math.max(0, Math.min(1, smoothBins[i-1]))) * plotH;
+                var cx = (px + x) / 2;
+                ctx.quadraticCurveTo(px, py, cx, (py + y) / 2);
+            }
+        }
+        ctx.strokeStyle = 'rgba(0, 220, 255, 0.8)';
+        ctx.lineWidth = 2;
+        ctx.shadowColor = 'rgba(0, 200, 255, 0.5)';
+        ctx.shadowBlur = 8;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        // 峰值频率
+        var peakIdx = 0, peakVal = 0;
+        for (var i = 1; i < pts; i++) {
+            if (smoothBins[i] > peakVal) { peakVal = smoothBins[i]; peakIdx = i; }
+        }
+        if (peakVal > 0.05) {
+            var freqHz = Math.round(resampleFreqs[peakIdx]);
+            peakFreqEl.textContent = freqHz + ' Hz';
+        }
+
+        requestAnimationFrame(drawSpectrum);
+    }
+    requestAnimationFrame(drawSpectrum);
+
+    setInterval(function() {
+        var now = performance.now();
+        var elapsed = (now - lastFpsTime) / 1000;
+        if (elapsed > 0) fpsDisplay.textContent = Math.round(fpsFrames / elapsed);
+        fpsFrames = 0;
+        lastFpsTime = now;
+    }, 1000);
+
+    function connect() {
+        var wsUrl = 'ws://' + window.location.host + '/ws/spectrum';
+        var ws = new WebSocket(wsUrl);
+        ws.onopen = function() {
+            connDot.className = 'connected';
+            connText.textContent = 'Loading audio...';
+            if (!audioStarted) {
+                audioPlayer.src = '/audio';
+                // 音频实际开始播放时才通知服务端启动 DMA
+                audioPlayer.onplaying = function() {
+                    if (!audioStarted) {
+                        audioStarted = true;
+                        ws.send(JSON.stringify({cmd: 'start'}));
+                        connText.textContent = 'Playing';
+                    }
+                };
+                audioPlayer.play().catch(function() {
+                    connText.textContent = 'Click page to start';
+                    document.addEventListener('click', function playOnClick() {
+                        audioPlayer.play();
+                        document.removeEventListener('click', playOnClick);
+                    });
+                });
+            }
+        };
+        ws.onmessage = function(event) {
+            var data = JSON.parse(event.data);
+            if (data.done) { connText.textContent = 'Playback Done'; return; }
+            rawBins = data.bins;
+            if (!smoothBins) {
+                smoothBins = new Float64Array(RESAMPLE_PTS);
+            }
+            frameCount++;
+            fpsFrames++;
+            frameCountEl.textContent = frameCount;
+        };
+        ws.onclose = function() {
+            connDot.className = '';
+            connText.textContent = 'Disconnected — reconnecting...';
+            setTimeout(connect, 2000);
+        };
+        ws.onerror = function() { ws.close(); };
+    }
+    connect();
+})();
+</script>
+</body>
+</html>

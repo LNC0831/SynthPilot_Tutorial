@@ -28,8 +28,8 @@ prj/04/audio/
 *.vcd
 *.str
 
-# PDF reference documents (too large for git)
-doc/*.pdf
+# PDF reference documents
+# doc/*.pdf
 
 # Claude Code local settings
 .claude/
